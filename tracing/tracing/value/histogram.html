@@ -1678,45 +1678,47 @@ tr.exportTo('tr.v', function() {
               10, tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
           .addBinBoundary(tr.b.convertUnit(
               30, tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(tr.b.convertUnit(
-              tr.b.UnitScale.TIME.MINUTE.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(2 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.MINUTE.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(5 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.MINUTE.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(10 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.MINUTE.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(30 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.MINUTE.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(tr.b.convertUnit(
-              tr.b.UnitScale.TIME.HOUR.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(2 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.HOUR.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(6 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.HOUR.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(12 * tr.b.convertUnit(
-              tr.b.UnitScale.TIME.HOUR.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(tr.b.convertUnit(
-              tr.b.UnitScale.TIME.DAY.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(tr.b.convertUnit(
-              tr.b.UnitScale.TIME.WEEK.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(tr.b.convertUnit(
-              tr.b.UnitScale.TIME.MONTH.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
-          .addBinBoundary(tr.b.convertUnit(
-              tr.b.UnitScale.TIME.YEAR.value,
-              tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC)));
+          // .addBinBoundary(tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.MINUTE.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(2 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.MINUTE.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(5 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.MINUTE.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(10 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.MINUTE.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(30 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.MINUTE.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.HOUR.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(2 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.HOUR.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(6 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.HOUR.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(12 * tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.HOUR.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.DAY.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.WEEK.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.MONTH.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          // .addBinBoundary(tr.b.convertUnit(
+          //     tr.b.UnitScale.TIME.YEAR.value,
+          //     tr.b.UnitScale.TIME.SEC, tr.b.UnitScale.TIME.MILLI_SEC))
+          )
+          ;
 
   DEFAULT_BOUNDARIES_FOR_UNIT.set(
       tr.b.Unit.byName.timeStampInMs.unitName,
