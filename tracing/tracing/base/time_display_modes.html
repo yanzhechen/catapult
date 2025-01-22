@@ -32,7 +32,7 @@ tr.exportTo('tr.b', function() {
     suffix: 'ns',
     // Compares a < b with adjustments to precision errors.
     roundedLess(a, b) {
-      return Math.round(a * 1000000) < Math.round(b * 1000000);
+      return Math.round(a * 1000000000) < Math.round(b * 1000000000);
     },
     formatSpec: {
       unitScale: [tr.b.UnitScale.TIME.NANO_SEC],
