@@ -135,6 +135,7 @@ found in the LICENSE file.
           </tr-ui-b-toolbar-button>
           <tr-ui-b-dropdown id="view_options_dropdown" label="View Options"></tr-ui-b-dropdown>
           <tr-ui-find-control id="view_find_control"></tr-ui-find-control>
+          <tr-ui-find-control id="view_title_find_control"></tr-ui-find-control>
           <tr-ui-b-toolbar-button id="view_console_button">
             &#187;
           </tr-ui-b-toolbar-button>
@@ -205,6 +206,11 @@ Polymer({
 
     this.findCtl_ = this.$.view_find_control;
     this.findCtl_.controller = new tr.ui.FindController(
+        this.brushingStateController_);
+
+    // this.brushingTitleStateController_ = new tr.c.BrushingStateController(this);
+    this.TitlefindCtl_ = this.$.view_title_find_control;
+    this.TitlefindCtl_.controller = new tr.ui.TitleFindController(
         this.brushingStateController_);
 
     this.scriptingCtl_ = document.createElement('tr-ui-scripting-control');

@@ -91,6 +91,34 @@ tr.exportTo('tr.c', function() {
     }
   };
 
+    /**
+   * @constructor A filter that matches objects with the exact given title.
+   */
+   function ReTitleFilter(text) {
+    Filter.call(this);
+    this.text_ = text;
+
+    if (!text.length) {
+      throw new Error('Filter text is empty.');
+    }
+  }
+  ReTitleFilter.prototype = {
+    __proto__: Filter.prototype,
+
+    matchSlice(slice) {
+      // return slice.title === this.text_;
+      try {
+        const re = new RegExp(this.text_);
+        return re.test(slice.title);
+      }
+      catch (error) {
+        return false
+        // Expected output: ReferenceError: nonExistentFunction is not defined
+        // (Note: the exact output may be browser-dependent)
+      }
+    }
+  };
+
   /**
    * @constructor A filter that matches objects by their full text contents
    * (title, category, args). Note that for performance this filter applies a
@@ -124,6 +152,7 @@ tr.exportTo('tr.c', function() {
     Filter,
     TitleOrCategoryFilter,
     ExactTitleFilter,
+    ReTitleFilter,
     FullTextFilter,
   };
 });
