@@ -297,8 +297,15 @@ def FindAllBrowserTypes():
       'reference',
       'release',
       'release_x64',
+      'release_full_x64',
+      'release_x86',
+      'release_full_x86',
+      'release_arm64',
       'debug',
       'debug_x64',
+      'debug_full_x64',
+      'debug_x86',
+      'debug_full_x86',
       'default',
       'stable',
       'beta',
@@ -356,11 +363,11 @@ def FindAllAvailableBrowsers(finder_options, device):
           'exact', finder_options, normalized_executable,
           is_content_shell,
           browser_directory))
-    else:
-      raise exceptions.PathMissingError(
-          '%s specified by --browser-executable does not exist or is not '
-          'executable' %
-          normalized_executable)
+      return browsers
+
+    raise exceptions.PathMissingError(
+        '%s specified by --browser-executable does not exist or is not '
+        'executable' % normalized_executable)
 
   def AddIfFound(browser_type, build_path, app_name, content_shell):
     app = os.path.join(build_path, app_name)
@@ -380,8 +387,17 @@ def FindAllAvailableBrowsers(finder_options, device):
   if finder_options.chromium_output_dir:
     logging.info('Flag chromium_output_dir: %s' %
                  finder_options.chromium_output_dir)
+    if finder_options.browser_type and finder_options.browser_type != 'all':
+      browser_type = finder_options.browser_type
+      logging.info('Using browser_type %s from command line', browser_type)
+    else:
+      browser_type = os.path.basename(
+          os.path.abspath(finder_options.chromium_output_dir).rstrip(os.sep)
+      ).lower()
+      logging.info(
+          'Generated browser_type %s from chromium_output_dir', browser_type)
     for chromium_app_name in chromium_app_names:
-      AddIfFound(finder_options.browser_type,
+      AddIfFound(browser_type,
                  finder_options.chromium_output_dir, chromium_app_name, False)
   else:
     logging.info('Search for possible desktop browser options from flag chrome '

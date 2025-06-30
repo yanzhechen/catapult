@@ -84,6 +84,7 @@ class TabTest(tab_test_case.TabTestCase):
 
   @decorators.Enabled('has tabs')
   @decorators.Disabled('chromeos') # https://crbug.com/947675
+  @decorators.Disabled('win')  # crbug.com/410761163
   def testActivateTab(self):
     py_utils.WaitFor(lambda: _IsDocumentVisible(self._tab), timeout=5)
     new_tab = self._browser.tabs.New()
@@ -280,6 +281,8 @@ class SharedStorageTabTest(tab_test_case.TabTestCase):
     expected_json = sorted([json.dumps(entry) for entry in expected_entries])
     self.assertEqual(entries_json, expected_json)
 
+  # https://crbug.com/401011862: Temporarily disabled for Chromium changes.
+  @decorators.Disabled('all')
   def testWaitForSharedStorageEventsStrict_Passes(self):
     if not self._shared_storage_testable:
       return
@@ -332,6 +335,8 @@ class SharedStorageTabTest(tab_test_case.TabTestCase):
       self._tab.WaitForSharedStorageEvents(expected_events, mode='strict',
                                          timeout=10)
 
+  # https://crbug.com/401011862: Temporarily disabled for Chromium changes.
+  @decorators.Disabled('all')
   def testWaitForSharedStorageEventsRelaxed_Passes(self):
     if not self._shared_storage_testable:
       return
@@ -390,6 +395,8 @@ class SharedStorageTabTest(tab_test_case.TabTestCase):
     self.VerifyEntries(entries,
                        expected_entries=[{'key': 'test', 'value': 'set'}])
 
+  # https://crbug.com/401011862: Temporarily disabled for Chromium changes.
+  @decorators.Disabled('all')
   def testGetSharedStorageMetadata_SetAdditional(self):
     if not self._shared_storage_testable:
       return
@@ -429,6 +436,8 @@ class SharedStorageTabTest(tab_test_case.TabTestCase):
     self.VerifyMetadata(metadata, expected_length=4,
                         expected_remaining_budget=12)
 
+  # https://crbug.com/401011862: Temporarily disabled for Chromium changes.
+  @decorators.Disabled('all')
   def testGetSharedStorageEntries_SetAdditional(self):
     if not self._shared_storage_testable:
       return

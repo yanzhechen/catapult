@@ -48,10 +48,15 @@ _HOST_ARCH = [{
 }]
 
 _CHROMIUM_DEPS = {
-    'chromium_commands': {
+    'devil_util_device': {
+        'archs': _DEVICE_ARCHS,
+        'build_path': 'devil_util_bin',
+        'target_name': 'devil_util',
+    },
+    'devil_util_host': {
         'archs': _HOST_ARCH,
-        'build_path': 'lib.java/chromium_commands.dex.jar',
-        'target_name': 'chromium_commands_java',
+        'build_path': 'clang_x64/devil_util_bin',
+        'target_name': 'devil_util',
     },
     'forwarder_device': {
         'archs': _DEVICE_ARCHS,
@@ -62,16 +67,6 @@ _CHROMIUM_DEPS = {
         'archs': _HOST_ARCH,
         'build_path': 'clang_x64/host_forwarder',
         'target_name': 'forwarder2',
-    },
-    'md5sum_device': {
-        'archs': _DEVICE_ARCHS,
-        'build_path': 'md5sum_bin',
-        'target_name': 'md5sum',
-    },
-    'md5sum_host': {
-        'archs': _HOST_ARCH,
-        'build_path': 'clang_x64/md5sum_bin',
-        'target_name': 'md5sum',
     },
 }
 

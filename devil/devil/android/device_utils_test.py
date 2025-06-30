@@ -2970,51 +2970,33 @@ class DeviceUtilsPushChangedFilesIndividuallyTest(DeviceUtilsTest):
       self.device._PushChangedFilesIndividually(test_files)
 
 
-class DeviceUtilsPushChangedFilesZippedTest(DeviceUtilsTest):
-  def testPushChangedFilesZipped_noUnzipCommand(self):
-    test_files = [('/test/host/path/file1', '/test/device/path/file1')]
-    with self.assertCalls((self.call.device._MaybeInstallCommands(), False)):
-      self.assertFalse(
-          self.device._PushChangedFilesZipped(test_files, ['/test/dir']))
+class DeviceUtilsPushChangedFilesCompressedArchiveTest(DeviceUtilsTest):
 
-  def _testPushChangedFilesZipped_spec(self, test_files, test_dirs):
-    @contextlib.contextmanager
-    def mock_zip_temp_dir():
-      yield '/test/temp/dir'
-
-    expected_cmd = ''.join([
-        '\n  /data/local/tmp/bin/unzip %s &&',
-        ' (for dir in %s\n  do\n    chmod -R 777 "$dir" || exit 1\n',
-        '  done)\n'
-    ]) % ('/sdcard/foo123.zip', ' '.join(
-        cmd_helper.SingleQuote(d) for d in test_dirs))
+  def _testPushChangedFilesCompressedArchive_spec(self, test_files, test_dirs):
     with self.assertCalls(
-        (self.call.device._MaybeInstallCommands(), True),
-        (mock.call.py_utils.tempfile_ext.NamedTemporaryDirectory(),
-         mock_zip_temp_dir), (mock.call.devil.utils.zip_utils.WriteZipFile(
-             '/test/temp/dir/tmp.zip', test_files)),
-        (mock.call.os.path.getsize('/test/temp/dir/tmp.zip'), 123),
-        (self.call.device.NeedsSU(), True),
+        (self.call.device.HasRoot(), True),
+        (mock.call.tempfile.NamedTemporaryFile(suffix='.zst'),
+         MockTempFile('/tmp/foo.zst')),
+        (mock.call.devil.android.devil_util.CreateZstCompressedArchive(
+            '/tmp/foo.zst', test_files)),
+        (mock.call.os.path.getsize('/tmp/foo.zst'), 123),
+        (self.call.device.GetEnforce(timeout=None, retries=None), False),
         (mock.call.devil.android.device_temp_file.DeviceTempFile(
-            self.adb, suffix='.zip'), MockTempFile('/sdcard/foo123.zip')),
-        self.call.adb.Push('/test/temp/dir/tmp.zip', '/sdcard/foo123.zip'),
-        (mock.call.devil.android.device_temp_file.DeviceTempFile(
-            self.adb, suffix='.sh'), MockTempFile('/sdcard/temp-123.sh')),
-        self.call.device.WriteFile('/sdcard/temp-123.sh', expected_cmd),
-        (self.call.device.RunShellCommand(['source', '/sdcard/temp-123.sh'],
-                                          check_return=True,
-                                          timeout=100,
-                                          as_root=True))):
+            self.adb), MockTempFile('/sdcard/foo')),
+        (mock.call.devil.android.devil_util.CreateNamedPipe(
+            '/sdcard/foo', self.device)),
+        (self.call.adb.Push('/tmp/foo.zst', '/sdcard/foo')),
+        (mock.call.devil.android.devil_util.ExtractZstCompressedArchive(
+            '/sdcard/foo', self.device))):
       self.assertTrue(
-          self.device._PushChangedFilesZipped(test_files, test_dirs))
+          self.device._PushChangedFilesCompressedArchive(test_files, test_dirs))
 
-  def testPushChangedFilesZipped_single(self):
-    self._testPushChangedFilesZipped_spec(
-        [('/test/host/path/file1', '/test/device/path/file1')],
-        ['/test/dir1'])
+  def testPushChangedFilesCompressedArchive_single(self):
+    self._testPushChangedFilesCompressedArchive_spec(
+        [('/test/host/path/file1', '/test/device/path/file1')], ['/test/dir1'])
 
-  def testPushChangedFilesZipped_multiple(self):
-    self._testPushChangedFilesZipped_spec(
+  def testPushChangedFilesCompressedArchive_multiple(self):
+    self._testPushChangedFilesCompressedArchive_spec(
         [('/test/host/path/file1', '/test/device/path/file1'),
          ('/test/host/path/file2', '/test/device/path/file2')],
         ['/test/dir1', '/test/dir2', '/test/dir with space'])
@@ -3350,20 +3332,23 @@ class DeviceUtilsWriteFileTest(DeviceUtilsTest):
       self.device.WriteFile('/path/to/device/file', contents, as_root=True)
 
   def testWriteFile_withEcho(self):
-    with self.assertCall(
-        self.call.adb.Shell("echo -n the.contents > /test/file/to.write",
-                            timeout=mock.ANY), ''):
+    expected_cmd = ('P=/test/file;mkdir -p "$P" && echo -n the.contents>'
+                    '"$P"/to.write')
+    with self.assertCall(self.call.adb.Shell(expected_cmd, timeout=mock.ANY),
+                         ''):
       self.device.WriteFile('/test/file/to.write', 'the.contents')
 
   def testWriteFile_withEchoAndQuotes(self):
-    with self.assertCall(
-        self.call.adb.Shell("echo -n 'the contents' > '/test/file/to write'",
-                            timeout=mock.ANY), ''):
+    expected_cmd = ('P=/test/file;mkdir -p "$P" && echo -n \'the contents\'>'
+                    '"$P"/\'to write\'')
+    with self.assertCall(self.call.adb.Shell(expected_cmd, timeout=mock.ANY),
+                         ''):
       self.device.WriteFile('/test/file/to write', 'the contents')
 
   def testWriteFile_withEchoAndSU(self):
-    expected_cmd_without_su = "sh -c 'echo -n contents > /test/file'"
-    expected_cmd = 'su -c %s' % expected_cmd_without_su
+    expected_cmd_without_su = (
+        'sh -c \'P=/test;mkdir -p "$P" && echo -n contents>"$P"/file\'')
+    expected_cmd = "su -c '%s'" % expected_cmd_without_su
     with self.assertCalls(
         (self.call.device.NeedsSU(), True),
         (self.call.device._Su(expected_cmd_without_su), expected_cmd),
@@ -3692,6 +3677,12 @@ class DeviceUtilsGetPropTest(DeviceUtilsTest):
   def testIsEmulator_Android13(self):
     with self.assertCall(
         self.call.device.GetProp('ro.product.device', cache=True), 'emu64x'):
+      self.assertTrue(self.device.is_emulator)
+
+  def testIsEmulator_Android15(self):
+    with self.assertCall(
+        self.call.device.GetProp('ro.product.device', cache=True),
+        'vsoc_x86_64'):
       self.assertTrue(self.device.is_emulator)
 
   def testIsEmulator_physicalDevice(self):

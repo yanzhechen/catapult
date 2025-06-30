@@ -21,13 +21,18 @@ See go/resultdb and go/resultsink for more details.
 """
 
 import base64
+from collections.abc import Mapping
 import contextlib
 import hashlib
 import json
 import os
 import sys
 
-import requests
+# The requests module is only needed if we actually need to talk to a sink.
+try:
+    import requests
+except ImportError:
+    requests = None
 
 from typ import host as typ_host
 from typ import json_results
@@ -86,6 +91,10 @@ class ResultSinkReporter(object):
                             'result_sink')
             if not self._sink:
                 return
+
+            assert requests is not None, (
+                'Need the requests module to talk to the result sink'
+            )
 
             self._invocation_level_url = ('http://%s/prpc/luci.resultsink.v1.Sink/ReportInvocationLevelArtifacts'
                          % self._sink['address'])
@@ -149,8 +158,10 @@ class ResultSinkReporter(object):
                     containing the test.
             test_name_prefix: A string containing the prefix that will be added
                     to the test name.
-            additional_tags: An optional dict of additional tags to report to
-                    ResultDB.
+            additional_tags: Optional tags to add to the ResultDB result. The
+                    tags should be represented either as a sequence of key-value
+                    pairs or as a mapping from keys to values. The former
+                    supports repeated keys.
             html_summary: Optional human-readable explanation of the result as
                     sanitized HTML. If omitted, the reporter will generate a
                     default summary with links extracted from artifacts.
@@ -163,7 +174,9 @@ class ResultSinkReporter(object):
             return 0
 
         expectation_tags = expectations.tags if expectations else []
-        additional_tags = additional_tags or {}
+        additional_tags = additional_tags or []
+        if isinstance(additional_tags, Mapping):
+            additional_tags = list(additional_tags.items())
 
         test_id = test_name_prefix + result.name
         raw_typ_expected_results = (
@@ -194,16 +207,24 @@ class ResultSinkReporter(object):
         if expectation_tags:
             for tag in expectation_tags:
                 tag_list.append(('typ_tag', tag))
-        for key, value in additional_tags.items():
+        for key, value in additional_tags:
             assert isinstance(key, str)
             assert isinstance(value, str)
             tag_list.append((key, value))
 
         artifacts = {}
         original_artifacts = result.artifacts or {}
+        in_memory_text_artifacts = result.in_memory_text_artifacts or {}
         https_artifacts = ''
         assert STDOUT_KEY not in original_artifacts
+        assert STDOUT_KEY not in in_memory_text_artifacts
         assert STDERR_KEY not in original_artifacts
+        assert STDERR_KEY not in in_memory_text_artifacts
+        # Make sure there are no overlapping keys between file artifacts and
+        # in-memory artifacts.
+        assert not (set(original_artifacts.keys()) &
+                    set(in_memory_text_artifacts.keys()))
+
         if original_artifacts:
             assert artifact_output_dir
             if not os.path.isabs(artifact_output_dir):
@@ -232,6 +253,13 @@ class ResultSinkReporter(object):
                     'filePath': self.host.join(
                             artifact_output_dir, artifact_filepaths[0]),
                 }
+
+        for artifact_name, text_content in in_memory_text_artifacts.items():
+            artifacts[artifact_name] = {
+                'contents': base64.b64encode(
+                    text_content.encode('utf-8')).decode('utf-8'),
+                'content_type': 'text/plain; charset=utf-8',
+            }
 
         for artifact_id, contents in [(STDOUT_KEY, result.out),
                                       (STDERR_KEY, result.err)]:

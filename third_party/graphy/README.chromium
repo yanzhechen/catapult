@@ -1,7 +1,8 @@
 Name: Graphy
 URL: http://code.google.com/p/graphy/
 Version: 1.0.0
-License: Apache
+Update Mechanism: Manual
+License: Apache-2.0
 License File: LICENSE
 Security Critical: no
 Shipped: yes

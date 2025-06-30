@@ -21,6 +21,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/andybalholm/brotli"
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/js"
 )
 
 type readerWithError struct {
@@ -133,7 +137,8 @@ func decompressBody(ce string, compressed []byte) ([]byte, error) {
 		}
 	case "deflate":
 		r = flate.NewReader(bytes.NewReader(compressed))
-	// TODO(catapult:3742): Implement Brotli support.
+	case "br":
+		return ioutil.ReadAll(brotli.NewReader(bytes.NewReader(compressed)))
 	default:
 		// Unknown compression type or uncompressed.
 		return compressed, errors.New("unknown compression: " + ce)
@@ -157,6 +162,9 @@ func CompressBody(ae string, uncompressed []byte) ([]byte, string, error) {
 	case strings.Contains(ae, "deflate"):
 		w, _ = flate.NewWriter(&buf, flate.DefaultCompression) // never fails
 		outCE = "deflate"
+	case strings.Contains(ae, "br"):
+		w = brotli.NewWriter(&buf)
+		outCE = "br"
 	default:
 		// Unknown compression type or compression not allowed.
 		return uncompressed, "identity", errors.New("unknown compression: " + ae)
@@ -173,24 +181,25 @@ func CompressBody(ae string, uncompressed []byte) ([]byte, string, error) {
 // header or if the CSP header does not have a script-src directive,
 // getCSPScriptSrcDirectiveFromHeaders returns an empty string.
 func getCSPScriptSrcDirectiveFromHeaders(header http.Header) string {
-	csp := header.Get("Content-Security-Policy")
-	if csp == "" {
-		return ""
-	}
-
-	directives := strings.Split(csp, ";")
-	default_directive := ""
-	for _, directive := range directives {
-		directive = strings.TrimSpace(directive)
-		if strings.HasPrefix(directive, "script-src") {
-			return directive
-		}
-		if strings.HasPrefix(directive, "default-src") {
-			default_directive = directive
+	// There might be multiple Content-Security-Policy instances. Look for
+	// script-src across all of them first, then  default-src.
+	for _, csp := range header.Values("Content-Security-Policy") {
+		for _, directive := range strings.Split(csp, ";") {
+			directive = strings.TrimSpace(directive)
+			if strings.HasPrefix(directive, "script-src") {
+				return directive
+			}
 		}
 	}
-
-	return default_directive
+	for _, csp := range header.Values("Content-Security-Policy") {
+		for _, directive := range strings.Split(csp, ";") {
+			directive = strings.TrimSpace(directive)
+			if strings.HasPrefix(directive, "default-src") {
+				return directive
+			}
+		}
+	}
+	return ""
 }
 
 // getScriptSrcNonceTokenFromCSPHeader returns the nonce token from a
@@ -321,25 +330,26 @@ type ResponseTransformer interface {
 }
 
 // NewScriptInjector constructs a transformer that injects the given script
-// after the first <head>, <html>, or <!doctype html> tag. Statements in
-// script must be ';' terminated. The script is lightly minified before
-// injection.
+// after the first <head>, <html>, or <!doctype html> tag. The script is
+// minified before injection.
 func NewScriptInjector(
-	script []byte, replacements map[string]string) ResponseTransformer {
-	// Remove C-style comments.
-	script = jsMultilineCommentRE.ReplaceAllLiteral(script, []byte(""))
-	script = jsSinglelineCommentRE.ReplaceAllLiteral(script, []byte(""))
+	script []byte, replacements map[string]string) (ResponseTransformer, error) {
 	for oldstr, newstr := range replacements {
 		script = bytes.Replace(script, []byte(oldstr), []byte(newstr), -1)
 	}
-	// Remove line breaks.
-	script = bytes.Replace(script, []byte("\r\n"), []byte(""), -1)
+	m := minify.New()
+	m.AddFunc("application/javascript", js.Minify)
+	var minifiedJsBuffer bytes.Buffer
+	err := m.Minify("application/javascript", &minifiedJsBuffer, bytes.NewReader(script))
+	if err != nil {
+		return nil, err
+	}
 	// Compute the sha256 hash of the script content.
 	// WPR may need to use the sha256 hash in a CSP header to grant the injected
 	// script execute permission.
-	sha256Bytes := sha256.Sum256(script)
+	sha256Bytes := sha256.Sum256(minifiedJsBuffer.Bytes())
 	sha256String := base64.URLEncoding.EncodeToString(sha256Bytes[:])
-	return &scriptInjector{script, sha256String}
+	return &scriptInjector{minifiedJsBuffer.Bytes(), sha256String}, nil
 }
 
 // NewScriptInjectorFromFile creates a script injector from a script stored in
@@ -351,12 +361,10 @@ func NewScriptInjectorFromFile(
 	if err != nil {
 		return nil, err
 	}
-	return NewScriptInjector(script, replacements), nil
+	return NewScriptInjector(script, replacements)
 }
 
 var (
-	jsMultilineCommentRE  = regexp.MustCompile(`(?is)/\*.*?\*/`)
-	jsSinglelineCommentRE = regexp.MustCompile(`(?i)//.*`)
 	doctypeRE             = regexp.MustCompile(
 		`(?is)^.*?(<!--.*-->)?.*?<!doctype html>`)
 	htmlRE = regexp.MustCompile(
@@ -400,9 +408,10 @@ func (si *scriptInjector) Transform(_ *http.Request, resp *http.Response) {
 		return
 	}
 
-	transformResponseBody(resp, func(body []byte) []byte {
+	err := transformResponseBody(resp, func(body []byte) []byte {
 		// Don't inject if the script has already been injected.
 		if bytes.Contains(body, si.script) {
+			log.Printf("ScriptInjector(%s): already injected", resp.Request.URL)
 			return body
 		}
 
@@ -445,8 +454,13 @@ func (si *scriptInjector) Transform(_ *http.Request, resp *http.Response) {
 		// content-security-policy directive to allow the injected script to
 		// execute.
 		transformCSPHeader(resp.Header, si.sha256)
+
+		log.Printf("ScriptInjector(%s): succesfully injected", resp.Request.URL)
 		return buffer.Bytes()
 	})
+	if err != nil {
+		log.Printf("Error while injecting script: %v", err)
+	}
 }
 
 // NewRuleBasedTransformer creates a transformer that is controlled by a rules
@@ -481,6 +495,9 @@ type TransformerRule struct {
 	ExtraHeaders http.Header
 	// Inject these HTTP/2 PUSH_PROMISE frames into the response
 	Push []PushPromiseRule
+
+	// Path to a script to inject in the response.
+	InjectedScript string
 
 	// Hidden state generated by compile.
 	urlRE *regexp.Regexp
@@ -557,6 +574,15 @@ func (rt *ruleBasedTransformer) Transform(
 		log.Printf("Rule(%s): matched rule %v", req.URL, r.shortString())
 		for k, v := range r.ExtraHeaders {
 			resp.Header[k] = append(resp.Header[k], v...)
+		}
+
+		if r.InjectedScript != "" {
+			injector, err := NewScriptInjectorFromFile(r.InjectedScript, make(map[string]string))
+			if err != nil {
+				log.Printf("failed to inject %v into response for %v", r.InjectedScript, req.URL)
+				continue
+			}
+			injector.Transform(req, resp)
 		}
 		/*
 			if disabled {

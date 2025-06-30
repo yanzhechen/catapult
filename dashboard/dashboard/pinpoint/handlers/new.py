@@ -18,6 +18,7 @@ from dashboard.api import api_request_handler
 from dashboard.api import api_auth
 from dashboard.common import bot_configurations
 from dashboard.common import cloud_metric
+from dashboard.common import isolate_targets as iso
 from dashboard.common import utils
 from dashboard.pinpoint.models import change
 from dashboard.pinpoint.models import errors
@@ -25,13 +26,9 @@ from dashboard.pinpoint.models import job as job_module
 from dashboard.pinpoint.models import job_state
 from dashboard.pinpoint.models import quest as quest_module
 from dashboard.pinpoint.models import scheduler
-from dashboard.pinpoint.models import task as task_module
-from dashboard.pinpoint.models.tasks import performance_bisection
-from dashboard.pinpoint.models.tasks import read_value
 
 _ERROR_BUG_ID = 'Bug ID must be an integer.'
 _ERROR_TAGS_DICT = 'Tags must be a dict of key/value string pairs.'
-_ERROR_UNSUPPORTED = 'This benchmark (%s) is unsupported.'
 _ERROR_PRIORITY = 'Priority must be an integer.'
 
 _EXTRA_BROWSER_ARGS_PREFIX = '--extra-browser-args'
@@ -80,22 +77,6 @@ _NEW_MONOCHROME_TARGET = 'performance_test_suite_android_clank_monochrome'
 _OLD_CHROME_TARGET = 'performance_test_suite_android_clank_chrome'
 REGULAR_TELEMETRY_TESTS_WITH_FALLBACKS[
     _NEW_MONOCHROME_TARGET] = _OLD_CHROME_TARGET
-
-# TODO(https://crbug.com/378731077): Remove these fallback targets after Feb 5th
-#                                    2025, to provide 2 months of buffer.
-_NEW_TRICHROME_TARGETS = [
-    'performance_test_suite_android_trichrome_chrome_google_bundle',
-    'performance_test_suite_android_trichrome_chrome_google_64_32_bundle',
-]
-_OLD_TRICHROME_TARGETS = [
-    'performance_test_suite_android_clank_trichrome_bundle',
-    'performance_test_suite_android_clank_trichrome_chrome_google_64_32_bundle',
-]
-for new, old in zip(_NEW_TRICHROME_TARGETS, _OLD_TRICHROME_TARGETS):
-  # Allow falling back both ways to accommodate older and newer code that only
-  # uses either old or new.
-  REGULAR_TELEMETRY_TESTS_WITH_FALLBACKS[new] = old
-  REGULAR_TELEMETRY_TESTS_WITH_FALLBACKS[old] = new
 
 _NON_CHROME_TARGETS = ['v8']
 
@@ -164,6 +145,8 @@ def _CreateJob(req):
   name = arguments.get('name')
   pin = _ValidatePin(arguments.get('pin'))
   tags = _ValidateTags(arguments.get('tags'))
+  # the user triggering the job can be different from the underlying service
+  # account making the call to Pinpoint
   user = _ValidateUser(arguments.get('user'))
   changes = _ValidateChanges(comparison_mode, arguments)
 
@@ -171,11 +154,6 @@ def _CreateJob(req):
   # we'll set it at a negative priority.
   if not priority and comparison_mode == job_state.TRY:
     priority = -1
-
-  # TODO(dberris): Make this the default when we've graduated the beta.
-  use_execution_engine = (
-      arguments.get('experimental_execution_engine')
-      and arguments.get('comparison_mode') == job_state.PERFORMANCE)
 
   # Ensure that we have the required fields in tryjob requests.
   if comparison_mode == 'try':
@@ -207,7 +185,7 @@ def _CreateJob(req):
   # Create job.
   try:
     job = job_module.Job.New(
-        quests if not use_execution_engine else (),
+        quests,
         changes,
         arguments=original_arguments,
         bug_id=bug_id,
@@ -220,7 +198,7 @@ def _CreateJob(req):
         tags=tags,
         user=user,
         priority=priority,
-        use_execution_engine=use_execution_engine,
+        use_execution_engine=False,
         project=project,
         batch_id=batch_id,
         initial_attempt_count=initial_attempt_count,
@@ -229,50 +207,6 @@ def _CreateJob(req):
   except errors.SwarmingNoBots as e:
     six.raise_from(ValueError(str(e)), e)
 
-  if use_execution_engine:
-    # TODO(dberris): We need to figure out a way to get the arguments to be more
-    # structured when it comes in from the UI, so that we don't need to do the
-    # manual translation of options here.
-    # TODO(dberris): Decide whether we can make some of these hard-coded options
-    # be part of a template that's available in the UI (or by configuration
-    # somewhere else, maybe luci-config?)
-    start_change, end_change = changes
-    target = arguments.get('target')
-    task_options = performance_bisection.TaskOptions(
-        build_option_template=performance_bisection.BuildOptionTemplate(
-            builder=arguments.get('builder'),
-            target=target,
-            bucket=arguments.get('bucket', 'master.tryserver.chromium.perf'),
-        ),
-        test_option_template=performance_bisection.TestOptionTemplate(
-            swarming_server=arguments.get('swarming_server'),
-            dimensions=arguments.get('dimensions'),
-            extra_args=arguments.get('extra_test_args'),
-        ),
-        read_option_template=performance_bisection.ReadOptionTemplate(
-            benchmark=arguments.get('benchmark'),
-            histogram_options=read_value.HistogramOptions(
-                grouping_label=arguments.get('grouping_label'),
-                story=arguments.get('story'),
-                statistic=arguments.get('statistic'),
-                histogram_name=arguments.get('chart'),
-            ),
-            graph_json_options=read_value.GraphJsonOptions(
-                chart=arguments.get('chart'), trace=arguments.get('trace')),
-            mode=('histogram_sets'
-                  if target in performance_bisection.EXPERIMENTAL_TARGET_SUPPORT
-                  else 'graph_json')),
-        analysis_options=performance_bisection.AnalysisOptions(
-            comparison_magnitude=arguments.get('comparison_magnitude'),
-            min_attempts=10,
-            max_attempts=60,
-        ),
-        start_change=start_change,
-        end_change=end_change,
-        pinned_change=arguments.get('patch'),
-    )
-    task_module.PopulateTaskGraph(
-        job, performance_bisection.CreateGraph(task_options, arguments))
   return job
 
 
@@ -513,32 +447,10 @@ def GetIsolateTarget(bot_name, suite):
   if 'fuchsia-perf' in bot_name.lower():
     return 'performance_web_engine_test_suite'
 
-  # Each Android binary has its own target, and different bots use different
-  # binaries. Mapping based off of Chromium's
-  # //tools/perf/core/perf_data_generator.py
-  if bot_name in ['android-go-perf', 'android-go-perf-pgo']:
-    return 'performance_test_suite_android_clank_monochrome'
-  if bot_name == 'android-go-wembley-perf':
-    return 'performance_test_suite_android_trichrome_chrome_google_bundle'
-  if bot_name in ['android-new-pixel-perf', 'android-new-pixel-perf-pgo']:
-    return 'performance_test_suite_android_trichrome_chrome_google_64_32_bundle'
-  if bot_name in [
-      'android-new-pixel-pro-perf', 'android-new-pixel-pro-perf-pgo'
-  ]:
-    return 'performance_test_suite_android_trichrome_chrome_google_64_32_bundle'
-  if bot_name in ['android-pixel4-perf', 'android-pixel4-perf-pgo']:
-    return 'performance_test_suite_android_trichrome_chrome_google_64_32_bundle'
-  if bot_name in ['android-pixel6-perf', 'android-pixel6-perf-pgo']:
-    return 'performance_test_suite_android_trichrome_chrome_google_64_32_bundle'
-  if bot_name in ['android-pixel6-pro-perf', 'android-pixel6-pro-perf-pgo']:
-    return 'performance_test_suite_android_trichrome_chrome_google_bundle'
-  if bot_name == 'android-pixel-fold-perf':
-    return 'performance_test_suite_android_trichrome_chrome_google_64_32_bundle'
-  if 'android' in bot_name.lower():
-    raise Exception(
-        'Given Android bot %s does not have an isolate mapped to it' % bot_name)
-
-  return 'performance_test_suite'
+  return iso.GetAndroidTarget(
+      bot_name,
+      Exception('Given Android bot %s does not have an isolate mapped to it' %
+                bot_name))
 
 
 def _GenerateQuests(arguments):
