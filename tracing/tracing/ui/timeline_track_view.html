@@ -514,6 +514,18 @@ Polymer({
         e.stopPropagation();
       }
     });
+
+    // Add Escape key to clear selection and search highlighting
+    this.addKeyPressHotKey({
+      keyCode: 27, // Escape key
+      callback(e) {
+        const newBrushingState = this.brushingStateController_.currentBrushingState.clone();
+        newBrushingState.selection = new tr.model.EventSet();
+        newBrushingState.findMatches = new tr.model.EventSet();
+        this.brushingStateController_.currentBrushingState = newBrushingState;
+        e.stopPropagation();
+      }
+    });
   },
 
   get viewWidth_() {
@@ -1063,6 +1075,17 @@ Polymer({
     }
     this.modelTrack_.addIntersectingEventsInRangeToSelection(
         loVX, hiVX, loY, hiY, selection);
+
+    // Keep previous selection if clicking on blank area (no new events selected)
+    // and not explicitly appending selection, but only if there's no active interest range
+    // (to allow clearing selection when using the mark/'m' functionality)
+    if (selection.length === 0 && !eDown.appendSelection && 
+        this.viewport_.interestRange.isEmpty) {
+      const previousSelection = this.brushingStateController_.selection;
+      if (previousSelection !== undefined && previousSelection.length > 0) {
+        selection.addEventSet(previousSelection);
+      }
+    }
 
     // Activate the new selection.
     this.brushingStateController_.changeSelectionFromTimeline(selection);
