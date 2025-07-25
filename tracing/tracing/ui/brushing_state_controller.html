@@ -228,7 +228,8 @@ tr.exportTo('tr.c', function() {
     changeSelectionFromTimeline(selection) {
       const newBrushingState = this.currentBrushingState_.clone();
       newBrushingState.selection = selection;
-      newBrushingState.findMatches = new EventSet();
+      // Preserve existing findMatches instead of clearing them
+      // newBrushingState.findMatches = new EventSet();
       this.currentBrushingState = newBrushingState;
 
       this.onUserInitiatedSelectionChange_();
@@ -244,7 +245,8 @@ tr.exportTo('tr.c', function() {
     changeSelectionFromRequestSelectionChangeEvent(selection) {
       const newBrushingState = this.currentBrushingState_.clone();
       newBrushingState.selection = selection;
-      newBrushingState.findMatches = new EventSet();
+      // Preserve existing findMatches instead of clearing them
+      // newBrushingState.findMatches = new EventSet();
       this.currentBrushingState = newBrushingState;
 
       this.onUserInitiatedSelectionChange_();
