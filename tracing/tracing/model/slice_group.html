@@ -382,6 +382,60 @@ tr.exportTo('tr.model', function() {
       }
     },
 
+    findUniqSliceAtTs(ts, bind_id) {
+      if (!this.haveTopLevelSlicesBeenBuilt) throw new Error('Nope');
+      let i = tr.b.findIndexInSortedClosedIntervals(
+          this.topLevelSlices,
+          getSliceLo, getSliceHi,
+          ts);
+      if (i === -1 || i === this.topLevelSlices.length) {
+        return undefined;
+      }
+      let curSlice = this.topLevelSlices[i];
+      let firstI = i;
+      // console.log(bind_id);
+      // Now recurse on slice looking for subSlice of given ts.
+      try{
+          let first = true;
+          while (true) {
+            // console.log(curSlice);
+            if (curSlice.args["instruction"] === bind_id) {
+              return curSlice;
+            }
+            i = tr.b.findIndexInSortedClosedIntervals(
+              curSlice.subSlices,
+              getSliceLo, getSliceHi,
+              ts);
+            if (i === -1 || i === curSlice.subSlices.length) {
+              if (first){
+                i = firstI + 1;
+                firstI = i;
+                if (i === this.topLevelSlices.length){
+                  console.log(bind_id + "Not found match slice.")
+                  return undefined;
+                }
+                curSlice = this.topLevelSlices[i];
+                first = false;
+              }
+              else {
+                return undefined;
+              }
+                
+            }
+            else {
+              curSlice = curSlice.subSlices[i];
+            }
+              
+        }
+      }
+      catch (e){
+        console.log(bind_id)
+        console.log(this.topLevelSlices[firstI]);
+      }
+      
+    },
+
+
     findNextSliceAfter(ts, refGuid) {
       let i = tr.b.findLowIndexInSortedArray(this.slices, getSliceLo, ts);
       if (i === this.slices.length) {
