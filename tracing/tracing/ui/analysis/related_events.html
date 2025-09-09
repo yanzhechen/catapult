@@ -177,8 +177,8 @@ Polymer({
         function* (event) {
           yield* getEventInFlowEvents(event);
           yield* getEventOutFlowEvents(event);
-          yield* getEventAncestors(event);
-          yield* getEventDescendents(event);
+          // yield* getEventAncestors(event);
+          // yield* getEventDescendents(event);
           if (event.startSlice) {
             yield event.startSlice;
           }

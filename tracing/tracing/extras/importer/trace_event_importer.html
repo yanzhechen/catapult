@@ -2120,7 +2120,7 @@ tr.exportTo('tr.e.importer', function() {
         } else {
           // Support Flow API v1.
           const ts = this.toModelTimeFromUs_(event.ts);
-          startSlice = thread.sliceGroup.findSliceAtTs(ts);
+          startSlice = thread.sliceGroup.findUniqSliceAtTs(ts, event.cat);
           if (startSlice === undefined) return undefined;
           flowId = event.id;
           flowStartTs = ts;
@@ -2134,7 +2134,7 @@ tr.exportTo('tr.e.importer', function() {
             flowStartTs,
             this.deepCopyAlways_(event.args));
         flowEvent.startSlice = startSlice;
-        flowEvent.startStackFrame = this.getStackFrameForEvent_(event);
+        // flowEvent.startStackFrame = this.getStackFrameForEvent_(event);
         flowEvent.endStackFrame = undefined;
         startSlice.outFlowEvents.push(flowEvent);
         return flowEvent;
@@ -2151,7 +2151,7 @@ tr.exportTo('tr.e.importer', function() {
           // Support Flow API v1.
           const ts = this.toModelTimeFromUs_(event.ts);
           if (bindToParent) {
-            endSlice = thread.sliceGroup.findSliceAtTs(ts);
+            endSlice = thread.sliceGroup.findUniqSliceAtTs(ts, event.cat);
           } else {
             endSlice = thread.sliceGroup.findNextSliceAfter(ts, refGuid);
           }
@@ -2162,7 +2162,7 @@ tr.exportTo('tr.e.importer', function() {
         flowEvent.endSlice = endSlice;
         flowEvent.duration =
             this.toModelTimeFromUs_(event.ts) - flowEvent.start;
-        flowEvent.endStackFrame = this.getStackFrameForEvent_(event);
+        // flowEvent.endStackFrame = this.getStackFrameForEvent_(event);
         this.mergeArgsInto_(flowEvent.args, event.args, flowEvent.title);
         return true;
       }.bind(this);
